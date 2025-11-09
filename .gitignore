@@ -1,0 +1,22 @@
+# Ignore common files we don't want in Git
+node_modules/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# Build directories (we'll add these later)
+dist/
+build/
+.next/
+
+# Database files (local development)
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp

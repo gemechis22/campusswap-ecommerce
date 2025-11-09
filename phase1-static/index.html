@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Meta Information: Tells the browser about our page -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CampusSwap - York University student marketplace for textbooks, electronics, and academic essentials">
+    
+    <!-- Page Title (appears in browser tab) -->
+    <title>CampusSwap - Student Marketplace | York University</title>
+    
+    <!-- Link to our CSS stylesheet (we'll create this next) -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- NAVIGATION SECTION -->
+    <!-- 'header' is semantic HTML5 - tells screen readers this is the page header -->
+    <header class="main-header">
+        <nav class="navbar">
+            <!-- Logo/Brand -->
+            <div class="navbar-brand">
+                <h1>CampusSwap</h1>
+                <span class="university">York University</span>
+            </div>
+            
+            <!-- Navigation Menu -->
+            <ul class="navbar-menu">
+                <li><a href="#browse">Browse</a></li>
+                <li><a href="#categories">Categories</a></li>
+                <li><a href="#sell">Sell Item</a></li>
+                <li><a href="#about">About</a></li>
+            </ul>
+            
+            <!-- User Actions -->
+            <div class="navbar-actions">
+                <button class="btn-secondary">Sign In</button>
+                <button class="btn-primary">Sign Up</button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- MAIN CONTENT SECTION -->
+    <!-- 'main' tells browsers this is the primary content -->
+    <main class="main-content">
+        
+        <!-- HERO SECTION -->
+        <!-- This is our eye-catching landing area -->
+        <section class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">Find Everything You Need for University</h1>
+                <p class="hero-subtitle">
+                    Buy and sell textbooks, electronics, lab equipment, and more within the York University community.
+                    Save money, help fellow students, and reduce waste.
+                </p>
+                
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <input type="text" placeholder="Search for textbooks, calculators, furniture..." class="search-input">
+                    <button class="search-button">Search</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- FEATURED CATEGORIES SECTION -->
+        <section class="categories">
+            <h2 class="section-title">Popular Categories</h2>
+            <div class="category-grid">
+                
+                <!-- Each category is a clickable card -->
+                <div class="category-card">
+                    <div class="category-icon">📚</div>
+                    <h3>Textbooks</h3>
+                    <p>Course books for all programs</p>
+                    <span class="item-count">234 items</span>
+                </div>
+                
+                <div class="category-card">
+                    <div class="category-icon">💻</div>
+                    <h3>Electronics</h3>
+                    <p>Laptops, calculators, tablets</p>
+                    <span class="item-count">89 items</span>
+                </div>
+                
+                <div class="category-card">
+                    <div class="category-icon">🔬</div>
+                    <h3>Lab Equipment</h3>
+                    <p>Safety gear, lab kits, tools</p>
+                    <span class="item-count">67 items</span>
+                </div>
+                
+                <div class="category-card">
+                    <div class="category-icon">✏️</div>
+                    <h3>Stationery</h3>
+                    <p>Notebooks, pens, supplies</p>
+                    <span class="item-count">156 items</span>
+                </div>
+                
+            </div>
+        </section>
+
+        <!-- FEATURED PRODUCTS SECTION -->
+        <section class="featured-products">
+            <h2 class="section-title">Recently Listed</h2>
+            <div class="product-grid">
+                
+                <!-- Product Card 1 -->
+                <article class="product-card">
+                    <div class="product-image">
+                        <!-- Placeholder for now - we'll add real images later -->
+                        <div class="image-placeholder">📖</div>
+                    </div>
+                    <div class="product-info">
+                        <h3 class="product-title">Calculus Early Transcendentals (8th Ed)</h3>
+                        <p class="product-course">MATH 1013 • Like New Condition</p>
+                        <div class="product-price">$85</div>
+                        <div class="product-seller">
+                            <span class="seller-name">@sarah_chen</span>
+                            <span class="seller-rating">⭐ 4.8</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Product Card 2 -->
+                <article class="product-card">
+                    <div class="product-image">
+                        <div class="image-placeholder">💻</div>
+                    </div>
+                    <div class="product-info">
+                        <h3 class="product-title">TI-84 Plus CE Graphing Calculator</h3>
+                        <p class="product-course">MATH/PHYS • Excellent Condition</p>
+                        <div class="product-price">$120</div>
+                        <div class="product-seller">
+                            <span class="seller-name">@mike_torres</span>
+                            <span class="seller-rating">⭐ 4.9</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Product Card 3 -->
+                <article class="product-card">
+                    <div class="product-image">
+                        <div class="image-placeholder">⚗️</div>
+                    </div>
+                    <div class="product-info">
+                        <h3 class="product-title">Chemistry Lab Safety Kit</h3>
+                        <p class="product-course">CHEM 1000/1001 • Good Condition</p>
+                        <div class="product-price">$35</div>
+                        <div class="product-seller">
+                            <span class="seller-name">@alex_park</span>
+                            <span class="seller-rating">⭐ 4.7</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Product Card 4 -->
+                <article class="product-card">
+                    <div class="product-image">
+                        <div class="image-placeholder">📐</div>
+                    </div>
+                    <div class="product-info">
+                        <h3 class="product-title">Engineering Drawing Set</h3>
+                        <p class="product-course">ESSE 1012 • Fair Condition</p>
+                        <div class="product-price">$25</div>
+                        <div class="product-seller">
+                            <span class="seller-name">@jenny_kim</span>
+                            <span class="seller-rating">⭐ 4.6</span>
+                        </div>
+                    </div>
+                </article>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER SECTION -->
+    <footer class="main-footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>CampusSwap</h3>
+                <p>Making university life more affordable for York students.</p>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <ul>
+                    <li><a href="#how-it-works">How it Works</a></li>
+                    <li><a href="#safety">Safety Guidelines</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Categories</h4>
+                <ul>
+                    <li><a href="#textbooks">Textbooks</a></li>
+                    <li><a href="#electronics">Electronics</a></li>
+                    <li><a href="#lab-equipment">Lab Equipment</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Contact</h4>
+                <p>📧 support@campusswap.yorku.ca</p>
+                <p>🏫 York University, Toronto</p>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <p>&copy; 2025 CampusSwap. Built by EECS 4413 students for students.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
