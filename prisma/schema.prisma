@@ -1,0 +1,249 @@
+// ============================================
+// CAMPUSSWAP DATABASE SCHEMA - DAO PATTERN (SQLite Compatible)
+// EECS 4413 Project - Multi-tier Architecture
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MODEL - Authentication & Profiles
+// ============================================
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  firstName     String
+  lastName      String
+  studentId     String?   @unique
+  program       String?   // EECS, Business, etc.
+  year          Int?      // 1, 2, 3, 4, Graduate
+  phoneNumber   String?
+  
+  // Profile settings
+  isActive      Boolean   @default(true)
+  isVerified    Boolean   @default(false)
+  profileImage  String?
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  
+  // Relations
+  products      Product[] @relation("UserProducts")
+  purchases     Order[]   @relation("UserPurchases")
+  sales         Order[]   @relation("UserSales")
+  cartItems     CartItem[]
+  reviews       Review[]
+  messages      Message[]
+  
+  @@map("users")
+}
+
+// ============================================
+// CATEGORY MODEL - Product Organization
+// ============================================
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  icon        String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  products    Product[]
+  
+  @@map("categories")
+}
+
+// ============================================
+// PRODUCT MODEL - Main Marketplace Items
+// ============================================
+model Product {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  price       Float       // SQLite doesn't support Decimal, using Float
+  condition   String      // String instead of enum for SQLite
+  status      String      @default("AVAILABLE")
+  
+  // Academic Information
+  courseCode  String?     // EECS 4413, MATH 1013, etc.
+  isbn        String?     // For textbooks
+  edition     String?     // 8th Edition, etc.
+  author      String?     // For books
+  
+  // Product Details (simplified for SQLite)
+  imageUrl    String?     // Single image URL for now
+  brand       String?
+  model       String?
+  
+  // Location & Meetup
+  meetupLocation String?
+  isShippable    Boolean @default(false)
+  shippingCost   Float?
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  soldAt      DateTime?
+  
+  // Foreign Keys
+  sellerId    String
+  categoryId  String
+  
+  // Relations
+  seller      User        @relation("UserProducts", fields: [sellerId], references: [id])
+  category    Category    @relation(fields: [categoryId], references: [id])
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  reviews     Review[]
+  
+  @@map("products")
+}
+
+// ============================================
+// SHOPPING CART MODEL - Persistent Cart
+// ============================================
+model CartItem {
+  id        String   @id @default(cuid())
+  quantity  Int      @default(1)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Foreign Keys
+  userId    String
+  productId String
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  // Composite unique constraint
+  @@unique([userId, productId])
+  @@map("cart_items")
+}
+
+// ============================================
+// ORDER MODEL - Transaction Records
+// ============================================
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  status          String      @default("PENDING")
+  totalAmount     Float
+  
+  // Payment Information
+  paymentMethod   String?
+  paymentStatus   String      @default("PENDING")
+  
+  // Delivery Information
+  meetupLocation  String?
+  meetupTime      DateTime?
+  deliveryMethod  String      @default("MEETUP")
+  
+  // Notes
+  buyerNotes      String?
+  sellerNotes     String?
+  
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  completedAt     DateTime?
+  
+  // Foreign Keys
+  buyerId         String
+  sellerId        String
+  
+  // Relations
+  buyer           User        @relation("UserPurchases", fields: [buyerId], references: [id])
+  seller          User        @relation("UserSales", fields: [sellerId], references: [id])
+  orderItems      OrderItem[]
+  
+  @@map("orders")
+}
+
+// ============================================
+// ORDER ITEMS MODEL - Order Line Items
+// ============================================
+model OrderItem {
+  id        String  @id @default(cuid())
+  quantity  Int
+  price     Float   // Price at time of order
+  
+  // Foreign Keys
+  orderId   String
+  productId String
+  
+  // Relations
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+  
+  @@map("order_items")
+}
+
+// ============================================
+// REVIEW MODEL - Product Reviews
+// ============================================
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  comment   String?
+  isPublic  Boolean  @default(true)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Foreign Keys
+  reviewerId String
+  productId  String
+  
+  // Relations
+  reviewer   User     @relation(fields: [reviewerId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+  
+  // One review per user per product
+  @@unique([reviewerId, productId])
+  @@map("reviews")
+}
+
+// ============================================
+// MESSAGE MODEL - User Communication
+// ============================================
+model Message {
+  id         String      @id @default(cuid())
+  content    String
+  isRead     Boolean     @default(false)
+  messageType String     @default("INQUIRY")
+  
+  // Product context
+  productId  String?
+  
+  // Timestamps
+  createdAt  DateTime    @default(now())
+  
+  // Foreign Keys
+  senderId   String
+  receiverId String
+  
+  // Relations
+  sender     User        @relation(fields: [senderId], references: [id])
+  
+  @@map("messages")
+}

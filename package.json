@@ -1,0 +1,42 @@
+{
+  "name": "campusswap-backend",
+  "version": "1.0.0",
+  "description": "CampusSwap Backend - EECS 4413 Project implementing MVC Architecture and DAO Pattern",
+  "main": "server.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "keywords": [
+    "ecommerce",
+    "marketplace",
+    "mvc",
+    "dao",
+    "eecs4413"
+  ],
+  "author": "EECS 4413 Student",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.6.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.2",
+    "next": "^14.0.0",
+    "prisma": "^5.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.5",
+    "@types/cors": "^2.8.15",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.19.24",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "typescript": "^5.0.0"
+  }
+}
