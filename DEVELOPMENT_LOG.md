@@ -131,10 +131,89 @@ campusswap-backend/
 
 ---
 
-## 🎯 Next Phase: Frontend-Backend Integration (Days 17-18)
+## 📅 November 25, 2025 - Day 17: Express.js Backend Migration
+
+### 🎯 What We Built
+- **Migrated from Next.js to Express.js** - Resolved server connectivity issues
+- **Express server with MVC routing** - Traditional servlet-style architecture
+- **RESTful API working on port 3001** - Fully functional backend
+- **Maintained all existing architecture** - Controllers, DAOs, and Prisma intact
+
+### 🛠️ Technologies Used
+- **Express.js**: Web application framework for Node.js
+- **TypeScript with ts-node**: Runtime TypeScript execution
+- **CORS middleware**: Cross-origin resource sharing enabled
+- **All previous tech**: Prisma, SQLite, JWT, bcryptjs
+
+### 🏗️ Architecture Updates
+
+#### **Why We Switched to Express:**
+- Next.js had port binding issues on Windows (server said "Ready" but wouldn't accept connections)
+- Express is more aligned with EECS 4413 servlet architecture
+- Simpler, more reliable, and easier to understand
+- Direct mapping to Java Servlets concepts
+
+#### **New Structure:**
+```
+campusswap-backend/
+├── server.js                # Main Express server (like web.xml)
+├── src/
+│   ├── routes/             # NEW: Route mappings
+│   │   ├── productRoutes.js
+│   │   └── authRoutes.js
+│   ├── controllers/        # Updated for Express Request/Response
+│   ├── dao/               # Unchanged - still using DAO pattern
+│   ├── middleware/        # Updated for Express
+│   └── utils/             # Unchanged
+├── prisma/                # Database - unchanged
+└── package.json           # Updated scripts
+```
+
+#### **Key Changes:**
+1. **Route Files** - Separate route modules (like servlet mappings)
+   - `productRoutes.js` maps `/api/products/*` to ProductController
+   - `authRoutes.js` maps `/api/auth/*` to AuthController
+
+2. **Controllers Updated** - Changed from Next.js types to Express types
+   - `NextApiRequest` → `Request`
+   - `NextApiResponse` → `Response`
+   - Logic remains identical
+
+3. **Middleware Updated** - AuthMiddleware now uses Express Request
+
+4. **Server Configuration**
+   - Express app with CORS enabled
+   - JSON body parsing
+   - Centralized error handling
+   - Runs on port 3001
+
+### 🧪 Testing Results
+- ✅ Server starts successfully on port 3001
+- ✅ Health check endpoint: `GET /api/health` works
+- ✅ Products endpoint: `GET /api/products` returns JSON data
+- ✅ Database queries executing correctly (4 products returned)
+- ✅ Prisma ORM working with Express
+- ✅ CORS configured for frontend integration
+
+### 📚 Key Learning Outcomes
+- **Express.js routing**: How routes map to controllers (servlet pattern)
+- **Middleware pipeline**: Request processing flow in Express
+- **TypeScript with Express**: Type-safe Express development
+- **Migration strategy**: Moving from one framework to another
+- **Debugging**: Identifying and resolving port binding issues
+
+### 🔗 Status
+- **Backend**: ✅ Fully working on Express
+- **Database**: ✅ SQLite with 4 seeded products
+- **API**: ✅ All endpoints functional
+- **Next Step**: Connect frontend to backend API
+
+---
+
+## 🎯 Next Phase: Frontend-Backend Integration (Days 18-19)
 
 ### 📋 Planned Features
-- [ ] Connect frontend to backend API
+- [ ] Connect frontend to backend API (http://localhost:3001)
 - [ ] Dynamic product loading from database
 - [ ] Interactive search with API calls
 - [ ] Category filtering with real data
@@ -142,11 +221,11 @@ campusswap-backend/
 - [ ] User authentication flow
 
 ### 💡 Learning Goals
-- Fetch API / Axios for HTTP requests
+- Fetch API for HTTP requests
 - State management with real data
 - Error handling and loading states
-- CORS configuration
-- JWT authentication
+- CORS in action
+- JWT authentication flow
 - Form validation with API
 
 ---
