@@ -13,7 +13,8 @@ const CampusSwap = {
         university: 'York University',
         domain: 'yorku.ca',
         version: '1.0.0',
-        debug: true
+        debug: true,
+        apiBaseUrl: 'http://localhost:3001/api' // Backend API endpoint
     },
 
     // Application state
@@ -21,17 +22,16 @@ const CampusSwap = {
         currentCategory: 'all',
         searchTerm: '',
         cart: [],
-        products: [], // Will be populated with sample data
+        products: [], // Will be populated from API
         user: null,
-        isMobile: window.innerWidth <= 768
+        isMobile: window.innerWidth <= 768,
+        isLoading: false,
+        error: null
     },
 
     // Initialize the application
     init() {
         console.log('🚀 CampusSwap initializing...');
-        
-        // Load initial data
-        this.loadSampleProducts();
         
         // Set up event listeners
         this.setupEventListeners();
@@ -45,12 +45,79 @@ const CampusSwap = {
         // Load user cart from localStorage
         this.loadCartFromStorage();
         
+        // Load products from API
+        this.loadProductsFromAPI();
+        
         console.log('✅ CampusSwap ready!');
     }
 };
 
 // ============================================
-// SAMPLE DATA (Later: API calls)
+// API COMMUNICATION
+// ============================================
+
+CampusSwap.loadProductsFromAPI = async function() {
+    try {
+        // Show loading state
+        this.state.isLoading = true;
+        this.showLoadingState();
+        
+        console.log('📡 Fetching products from API...');
+        
+        // Fetch products from backend
+        const response = await fetch(`${this.config.apiBaseUrl}/products`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Store products in state
+        this.state.products = data.data || [];
+        this.state.isLoading = false;
+        this.state.error = null;
+        
+        console.log(`✅ Loaded ${this.state.products.length} products from API`);
+        
+        // Render products
+        this.filterAndDisplayProducts();
+        
+    } catch (error) {
+        console.error('❌ Error loading products:', error);
+        this.state.isLoading = false;
+        this.state.error = error.message;
+        this.showErrorState(error.message);
+    }
+};
+
+CampusSwap.showLoadingState = function() {
+    const productGrid = document.querySelector('.product-grid');
+    productGrid.innerHTML = `
+        <div class="loading-state">
+            <div class="loading-spinner">⏳</div>
+            <h3>Loading products...</h3>
+            <p>Fetching the latest items from CampusSwap</p>
+        </div>
+    `;
+};
+
+CampusSwap.showErrorState = function(errorMessage) {
+    const productGrid = document.querySelector('.product-grid');
+    productGrid.innerHTML = `
+        <div class="error-state">
+            <div class="error-icon">⚠️</div>
+            <h3>Unable to load products</h3>
+            <p>${errorMessage}</p>
+            <button onclick="CampusSwap.loadProductsFromAPI()" class="btn-primary">
+                🔄 Try Again
+            </button>
+        </div>
+    `;
+};
+
+// ============================================
+// SAMPLE DATA (Legacy - kept for reference)
 // ============================================
 
 CampusSwap.loadSampleProducts = function() {
@@ -276,6 +343,11 @@ CampusSwap.setupCategoryFilters = function() {
             };
             
             this.state.currentCategory = categoryMap[categoryText] || 'all';
+
+            // Clear any active search when picking a category
+            this.state.searchTerm = '';
+            const searchInput = document.querySelector('.search-input');
+            if (searchInput) searchInput.value = '';
             
             // Visual feedback
             this.highlightActiveCategory(card);
@@ -314,15 +386,19 @@ CampusSwap.highlightActiveCategory = function(activeCard) {
 
 CampusSwap.getFilteredProducts = function() {
     return this.state.products.filter(product => {
-        // Category filter
+        // Category filter - handle category object from database
+        const productCategory = product.category?.slug || (typeof product.category === 'string' ? product.category : null);
         const categoryMatch = this.state.currentCategory === 'all' || 
-                            product.category === this.state.currentCategory;
+                            productCategory === this.state.currentCategory;
         
-        // Search filter
+        // Search filter - search across multiple fields
         const searchMatch = !this.state.searchTerm || 
                           product.title.toLowerCase().includes(this.state.searchTerm) ||
-                          product.course.toLowerCase().includes(this.state.searchTerm) ||
-                          product.category.toLowerCase().includes(this.state.searchTerm);
+                          (product.courseCode && product.courseCode.toLowerCase().includes(this.state.searchTerm)) ||
+                          (product.courseName && product.courseName.toLowerCase().includes(this.state.searchTerm)) ||
+                          (product.category?.name && product.category.name.toLowerCase().includes(this.state.searchTerm)) ||
+                          (product.category?.slug && product.category.slug.toLowerCase().includes(this.state.searchTerm)) ||
+                          (product.description && product.description.toLowerCase().includes(this.state.searchTerm));
         
         return categoryMatch && searchMatch;
     });
@@ -355,25 +431,39 @@ CampusSwap.renderProducts = function(products) {
     productGrid.innerHTML = products.map(product => {
         const isLiked = self.isProductLiked(product.id);
         
+        // Get emoji for category (fallback if no image)
+        const categoryEmojis = {
+            'textbooks': '📖',
+            'electronics': '💻',
+            'lab-equipment': '⚗️',
+            'stationery': '📐'
+        };
+        // Handle category as object or string
+        const categorySlug = product.category?.slug || (typeof product.category === 'string' ? product.category.toLowerCase() : null);
+        const emoji = categoryEmojis[categorySlug] || '📦';
+        
         return `
             <article class="product-card" data-product-id="${product.id}">
                 <div class="product-image">
-                    <div class="image-placeholder">${product.image}</div>
+                    <div class="image-placeholder">${product.imageUrl || emoji}</div>
                     <button class="quick-add-btn" onclick="CampusSwap.addToCart('${product.id}')">
                         + Add to Cart
                     </button>
                 </div>
                 <div class="product-info">
                     <h3 class="product-title">${product.title}</h3>
-                    <p class="product-course">${product.course} • ${product.condition} Condition</p>
-                    <div class="product-price">$${product.price}</div>
+                    <p class="product-course">${product.courseName || 'General'} • ${product.condition} Condition</p>
+                    <div class="product-price">$${parseFloat(product.price).toFixed(2)}</div>
                     <div class="product-seller">
-                        <span class="seller-name">@${product.seller}</span>
-                        <span class="seller-rating">⭐ ${product.rating}</span>
+                        <span class="seller-name">@${product.seller?.username || 'anonymous'}</span>
+                        <span class="seller-rating">⭐ ${product.seller?.rating || '4.5'}</span>
                     </div>
                     <div class="product-actions">
                         <button class="btn-secondary btn-sm" onclick="CampusSwap.viewProduct('${product.id}')">
                             View Details
+                        </button>
+                        <button class="btn-primary btn-sm" onclick="CampusSwap.addToCart('${product.id}')">
+                            Add to Cart
                         </button>
                         <button class="btn-like ${isLiked ? 'liked' : ''}" 
                                 onclick="CampusSwap.toggleLike('${product.id}')">
@@ -501,7 +591,7 @@ CampusSwap.updateCartDisplay = function() {
 CampusSwap.getCartTotal = function() {
     return this.state.cart.reduce((total, item) => {
         const product = this.state.products.find(p => p.id === item.productId);
-        return total + (product ? product.price * item.quantity : 0);
+        return total + (product ? parseFloat(product.price) * item.quantity : 0);
     }, 0);
 };
 
@@ -565,20 +655,30 @@ CampusSwap.generateCartModalHTML = function() {
         const product = this.state.products.find(p => p.id === item.productId);
         if (!product) return '';
         
+        // Get emoji for category
+        const categoryEmojis = {
+            'textbooks': '📖',
+            'electronics': '💻',
+            'lab-equipment': '⚗️',
+            'stationery': '📐'
+        };
+        const categorySlug = product.category?.slug || (typeof product.category === 'string' ? product.category.toLowerCase() : null);
+        const emoji = categoryEmojis[categorySlug] || '📦';
+        
         return `
             <div class="cart-item">
-                <div class="cart-item-image">${product.image}</div>
+                <div class="cart-item-image">${product.imageUrl || emoji}</div>
                 <div class="cart-item-info">
                     <h4>${product.title}</h4>
-                    <p>${product.course}</p>
-                    <span class="cart-item-price">$${product.price}</span>
+                    <p>${product.courseCode || 'General'}</p>
+                    <span class="cart-item-price">$${parseFloat(product.price).toFixed(2)}</span>
                 </div>
                 <div class="cart-item-controls">
                     <button class="quantity-btn" data-action="decrease" data-product-id="${item.productId}">-</button>
                     <span class="quantity-display">${item.quantity}</span>
                     <button class="quantity-btn" data-action="increase" data-product-id="${item.productId}">+</button>
                 </div>
-                <div class="cart-item-total">$${(product.price * item.quantity).toFixed(2)}</div>
+                <div class="cart-item-total">$${(parseFloat(product.price) * item.quantity).toFixed(2)}</div>
             </div>
         `;
     }).join('');
@@ -665,8 +765,15 @@ CampusSwap.viewProduct = function(productId) {
     
     console.log(`👁️ Viewing product: ${product.title}`);
     
+    // Extract seller information
+    const sellerName = product.seller 
+        ? `${product.seller.firstName} ${product.seller.lastName}` 
+        : 'Unknown';
+    
+    const sellerProgram = product.seller?.program || 'Student';
+    
     // For now, show alert - in Phase 3 this will be a proper modal
-    alert(`${product.title}\n\nCourse: ${product.course}\nCondition: ${product.condition}\nPrice: $${product.price}\n\nDescription: ${product.description}\n\nSeller: @${product.seller} (⭐ ${product.rating})`);
+    alert(`${product.title}\n\nCourse: ${product.courseCode || product.course || 'General'}\nCondition: ${product.condition}\nPrice: $${parseFloat(product.price).toFixed(2)}\n\nDescription: ${product.description}\n\nSeller: ${sellerName} (${sellerProgram})\nMeetup Location: ${product.meetupLocation || 'TBD'}`);
 };
 
 CampusSwap.toggleLike = function(productId) {
@@ -703,23 +810,7 @@ CampusSwap.checkout = function() {
 };
 
 // ============================================
-// INITIALIZATION
+// INITIALIZATION (Moved to top of file)
 // ============================================
-
-CampusSwap.init = function() {
-    console.log('🚀 CampusSwap initializing...');
-    
-    // Load saved data from localStorage
-    this.loadCartFromStorage();
-    
-    // Initialize features
-    this.setupMobileNavigation();
-    this.setupSearch();
-    this.setupCategoryFilters();
-    this.setupShoppingCart();
-    
-    // Initial render
-    this.renderProducts(this.state.products);
-    
-    console.log('✅ CampusSwap ready!');
-};
+// Note: The main init() function is now defined at the top near the
+// CampusSwap object declaration to ensure proper loading order

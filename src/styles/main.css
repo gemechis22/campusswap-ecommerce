@@ -606,6 +606,50 @@ body {
     pointer-events: none;
 }
 
+/* Loading State Display */
+.loading-state,
+.error-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--spacing-3xl);
+    background: var(--light-gray);
+    border-radius: var(--radius-lg);
+}
+
+.loading-spinner {
+    font-size: var(--font-size-4xl);
+    margin-bottom: var(--spacing-md);
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-state h3,
+.error-state h3 {
+    color: var(--dark-gray);
+    margin-bottom: var(--spacing-sm);
+}
+
+.loading-state p,
+.error-state p {
+    color: var(--medium-gray);
+    margin-bottom: var(--spacing-lg);
+}
+
+.error-icon {
+    font-size: var(--font-size-4xl);
+    margin-bottom: var(--spacing-md);
+    opacity: 0.8;
+}
+
+.error-state {
+    background: #fff5f5;
+    border: 2px solid #fed7d7;
+}
+
 /* SEARCH RESULTS HIGHLIGHTING */
 .section-title.search-results {
     color: var(--primary-color);
