@@ -3,7 +3,7 @@
 // Think of this as the bouncer at a VIP club
 // ============================================
 
-import { NextApiRequest, NextApiResponse } from 'next';
+import { Request, Response } from 'express';
 import { verifyToken as verifyJWT, JWTPayload } from '../utils/jwt';
 
 /**
@@ -34,7 +34,7 @@ export interface AuthenticatedUser {
  */
 export class AuthMiddleware {
   
-  static async verifyToken(req: NextApiRequest): Promise<AuthenticatedUser | null> {
+  static async verifyToken(req: Request): Promise<AuthenticatedUser | null> {
     try {
       // Step 1: Get the Authorization header
       // Frontend sends: "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -90,8 +90,8 @@ export class AuthMiddleware {
    * @returns User if authenticated, null if not (and sends 401)
    */
   static async requireAuth(
-    req: NextApiRequest, 
-    res: NextApiResponse
+    req: Request, 
+    res: Response
   ): Promise<AuthenticatedUser | null> {
     const user = await this.verifyToken(req);
     
@@ -117,7 +117,7 @@ export class AuthMiddleware {
    * @param req - HTTP request
    * @returns User if authenticated, null if guest (no error)
    */
-  static async optionalAuth(req: NextApiRequest): Promise<AuthenticatedUser | null> {
+  static async optionalAuth(req: Request): Promise<AuthenticatedUser | null> {
     // Same as verifyToken, but doesn't send error response
     return await this.verifyToken(req);
   }

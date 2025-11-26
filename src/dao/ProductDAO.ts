@@ -22,6 +22,10 @@ export interface CreateProductData {
   shippingCost?: number;
 }
 
+
+export interface UpdateProductData extends Partial<CreateProductData> {
+  status?: string;
+}
 export interface ProductFilters {
   category?: string;
   search?: string;
@@ -230,7 +234,7 @@ export class ProductDAO {
   /**
    * Update product - Like "UPDATE products SET ... WHERE id = ?"
    */
-  static async update(id: string, updateData: Partial<CreateProductData>): Promise<any> {
+  static async update(id: string, updateData: UpdateProductData): Promise<any> {
     try {
       const product = await prisma.product.update({
         where: { id },

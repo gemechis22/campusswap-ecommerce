@@ -3,7 +3,7 @@
 // MVC Pattern: This is the "Controller" for user auth
 // ============================================
 
-import { NextApiRequest, NextApiResponse } from 'next';
+import { Request, Response } from 'express';
 import { UserDAO } from '../dao/UserDAO';
 import { generateToken } from '../utils/jwt';
 import { AuthMiddleware } from '../middleware/auth';
@@ -57,7 +57,7 @@ export class AuthController {
    * POST /api/auth/register
    * Body: { email, password, firstName, lastName, ... }
    */
-  static async register(req: NextApiRequest, res: NextApiResponse) {
+  static async register(req: Request, res: Response) {
     try {
       const data: RegisterRequest = req.body;
       
@@ -181,7 +181,7 @@ export class AuthController {
    * POST /api/auth/login
    * Body: { email, password }
    */
-  static async login(req: NextApiRequest, res: NextApiResponse) {
+  static async login(req: Request, res: Response) {
     try {
       const { email, password }: LoginRequest = req.body;
       
@@ -270,7 +270,7 @@ export class AuthController {
    * GET /api/auth/me
    * Headers: Authorization: Bearer <token>
    */
-  static async getProfile(req: NextApiRequest, res: NextApiResponse) {
+  static async getProfile(req: Request, res: Response) {
     try {
       // STEP 1: Verify authentication
       // requireAuth will automatically send 401 if not authenticated
@@ -341,7 +341,7 @@ export class AuthController {
    * POST /api/auth/logout
    * Headers: Authorization: Bearer <token>
    */
-  static async logout(req: NextApiRequest, res: NextApiResponse) {
+  static async logout(req: Request, res: Response) {
     try {
       // Verify user is authenticated
       const user = await AuthMiddleware.optionalAuth(req);
@@ -365,5 +365,10 @@ export class AuthController {
         message: 'An unexpected error occurred',
       });
     }
+  }
+  
+  // Alias for routes compatibility
+  static async getCurrentUser(req: Request, res: Response) {
+    return this.getProfile(req, res);
   }
 }

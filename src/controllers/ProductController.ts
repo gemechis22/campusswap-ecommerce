@@ -3,7 +3,7 @@
 // EECS 4413 Project - Business Logic Layer
 // ============================================
 
-import { NextApiRequest, NextApiResponse } from 'next';
+import { Request, Response } from 'express';
 import { ProductDAO } from '../dao/ProductDAO';
 import { AuthMiddleware } from '../middleware/auth';
 
@@ -53,7 +53,7 @@ export class ProductController {
   /**
    * GET /api/products - Get all products with filtering and pagination
    */
-  static async getProducts(req: NextApiRequest, res: NextApiResponse) {
+  static async getProducts(req: Request, res: Response) {
     try {
       const {
         page = '1',
@@ -112,9 +112,9 @@ export class ProductController {
   /**
    * GET /api/products/[id] - Get single product by ID
    */
-  static async getProductById(req: NextApiRequest, res: NextApiResponse) {
+  static async getProductById(req: Request, res: Response) {
     try {
-      const { id } = req.query;
+      const { id } = req.params;
 
       if (!id || typeof id !== 'string') {
         return res.status(400).json({
@@ -149,7 +149,7 @@ export class ProductController {
   /**
    * POST /api/products - Create new product (requires authentication)
    */
-  static async createProduct(req: NextApiRequest, res: NextApiResponse) {
+  static async createProduct(req: Request, res: Response) {
     try {
       // Verify authentication
       const user = await AuthMiddleware.verifyToken(req);
@@ -202,7 +202,7 @@ export class ProductController {
   /**
    * PUT /api/products/[id] - Update product (requires authentication and ownership)
    */
-  static async updateProduct(req: NextApiRequest, res: NextApiResponse) {
+  static async updateProduct(req: Request, res: Response) {
     try {
       // Verify authentication
       const user = await AuthMiddleware.verifyToken(req);
@@ -213,7 +213,7 @@ export class ProductController {
         });
       }
 
-      const { id } = req.query;
+      const { id } = req.params;
       const updateData: ProductUpdateRequest = req.body;
 
       if (!id || typeof id !== 'string') {
@@ -268,7 +268,7 @@ export class ProductController {
   /**
    * DELETE /api/products/[id] - Delete product (requires authentication and ownership)
    */
-  static async deleteProduct(req: NextApiRequest, res: NextApiResponse) {
+  static async deleteProduct(req: Request, res: Response) {
     try {
       // Verify authentication
       const user = await AuthMiddleware.verifyToken(req);
@@ -279,7 +279,7 @@ export class ProductController {
         });
       }
 
-      const { id } = req.query;
+      const { id } = req.params;
 
       if (!id || typeof id !== 'string') {
         return res.status(400).json({

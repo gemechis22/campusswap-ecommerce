@@ -35,7 +35,7 @@ export class UserDAO {
   /**
    * Create a new user
    */
-  static async create(userData: CreateUserData): Promise<User> {
+  static async create(userData: CreateUserData): Promise<any> {
     try {
       // Hash password before storing
       const hashedPassword = await bcrypt.hash(userData.password, 12);
@@ -50,10 +50,9 @@ export class UserDAO {
       console.log(`✅ User created: ${user.email}`);
       return user;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new Error('Email or Student ID already exists');
-        }
+      const anyError: any = error;
+      if (anyError && anyError.code === 'P2002') {
+        throw new Error('Email or Student ID already exists');
       }
       console.error('❌ User creation failed:', error);
       throw error;
@@ -63,7 +62,7 @@ export class UserDAO {
   /**
    * Find user by ID
    */
-  static async findById(id: string): Promise<User | null> {
+  static async findById(id: string): Promise<any | null> {
     try {
       return await prisma.user.findUnique({
         where: { id },
@@ -87,7 +86,7 @@ export class UserDAO {
   /**
    * Find user by email
    */
-  static async findByEmail(email: string): Promise<User | null> {
+  static async findByEmail(email: string): Promise<any | null> {
     try {
       return await prisma.user.findUnique({
         where: { email: email.toLowerCase() },
@@ -101,7 +100,7 @@ export class UserDAO {
   /**
    * Find user by student ID
    */
-  static async findByStudentId(studentId: string): Promise<User | null> {
+  static async findByStudentId(studentId: string): Promise<any | null> {
     try {
       return await prisma.user.findUnique({
         where: { studentId },
@@ -115,7 +114,7 @@ export class UserDAO {
   /**
    * Update user information
    */
-  static async update(id: string, userData: UpdateUserData): Promise<User> {
+  static async update(id: string, userData: UpdateUserData): Promise<any> {
     try {
       const user = await prisma.user.update({
         where: { id },
@@ -136,7 +135,7 @@ export class UserDAO {
   /**
    * Update user password
    */
-  static async updatePassword(id: string, newPassword: string): Promise<User> {
+  static async updatePassword(id: string, newPassword: string): Promise<any> {
     try {
       const hashedPassword = await bcrypt.hash(newPassword, 12);
       
@@ -159,7 +158,7 @@ export class UserDAO {
   /**
    * Update last login timestamp
    */
-  static async updateLastLogin(id: string): Promise<User> {
+  static async updateLastLogin(id: string): Promise<any> {
     try {
       return await prisma.user.update({
         where: { id },
@@ -176,7 +175,7 @@ export class UserDAO {
   /**
    * Verify user password
    */
-  static async verifyPassword(email: string, password: string): Promise<User | null> {
+  static async verifyPassword(email: string, password: string): Promise<any | null> {
     try {
       const user = await this.findByEmail(email);
       if (!user) return null;
@@ -193,7 +192,7 @@ export class UserDAO {
    * Get all users (admin function)
    */
   static async findAll(page: number = 1, limit: number = 10): Promise<{
-    users: User[];
+    users: any[];
     total: number;
     totalPages: number;
   }> {
@@ -228,7 +227,7 @@ export class UserDAO {
       ]);
 
       return {
-        users: users as User[],
+        users: users,
         total,
         totalPages: Math.ceil(total / limit),
       };
@@ -241,7 +240,7 @@ export class UserDAO {
   /**
    * Delete user (soft delete by deactivating)
    */
-  static async deactivate(id: string): Promise<User> {
+  static async deactivate(id: string): Promise<any> {
     try {
       const user = await prisma.user.update({
         where: { id },
@@ -262,7 +261,7 @@ export class UserDAO {
   /**
    * Reactivate user
    */
-  static async reactivate(id: string): Promise<User> {
+  static async reactivate(id: string): Promise<any> {
     try {
       const user = await prisma.user.update({
         where: { id },
