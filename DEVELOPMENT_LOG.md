@@ -249,3 +249,217 @@ When returning, share this log and mention:
 - **Timeline**: 30 days (until Dec 3, 2025)
 - **Focus**: Real-world project for resume/portfolio
 - **Architecture**: MVC, DAO patterns for course requirements
+
+
+Continue CampusSwap project from Day 3: JavaScript phase with full-stack integration.
+
+**Current Status:**
+- ✅ Express.js backend (port 3001) with Prisma ORM + SQLite
+- ✅ Frontend-backend integration complete
+- ✅ Authentication system working (Register/Login/Logout with JWT)
+- ✅ Product browsing with search & category filters
+- ✅ Shopping cart functionality
+- ✅ Authenticated product posting (Sell Item)
+- ✅ Fixed JWT token storage bug (data.data.token path)
+
+**Project Structure:**
+- Frontend: `campusswap/` (HTML/CSS/Vanilla JS, Live Server on port 5500)
+- Backend: `campusswap-backend/` (Express + TypeScript + Prisma)
+- Database: SQLite with seeded products and categories
+- Auth: JWT stored in localStorage under 'campusswap_token'
+
+**What Works:**
+- Users can register/login with @yorku.ca emails
+- Token automatically added to API requests via apiFetch() helper
+- Category filtering loads from /api/products and maps slug→ID
+- Sell Item modal posts to /api/products with proper authentication
+- Cart stored in localStorage
+
+**Teaching Style:**
+Please continue with teaching comments explaining what/where/why for learning purposes. We'll remove TEACHING comments before final GitHub push.
+
+**GitHub Repo:** https://github.com/gemechis22/campusswap-ecommerce
+
+**Next Steps to Consider:**
+- Display user name in navbar after login
+- "My Listings" page for user's posted products
+- Edit/delete own products
+- Or: Clean up TEACHING comments for production
+
+Ready to continue!
+
+---
+
+## 📅 November 27, 2025 - Day 20: User Profile & Product Management Features
+
+### 🎯 What We Built
+- **User Name Display in Navbar** - Personalized welcome message after login
+- **My Listings Page** - Users can view all their posted products
+- **Edit Product Feature** - Update product details (title, price, description, etc.)
+- **Delete Product Feature** - Remove products with confirmation dialog
+- **Backend Endpoints** - New `/api/products/my-listings` endpoint
+
+### 🛠️ Technologies Used
+- **Frontend**: Vanilla JavaScript with async/await for API calls
+- **Backend**: Express.js controllers and routes
+- **Database**: Prisma ORM with new DAO methods
+- **Authentication**: JWT token verification for protected routes
+
+### 🏗️ Architecture Enhancements
+
+#### 1. **User Profile Integration**
+   - Frontend now calls `/api/auth/me` on page load to fetch user data
+   - Stores user info in `CampusSwap.state.user` for UI personalization
+   - Navbar dynamically updates to show:
+     - `Welcome, [First Name]!` message
+     - "My Listings" button
+     - "Sell Item" button
+     - "Logout" button
+
+#### 2. **My Listings Feature**
+   - **Backend**: Added `ProductDAO.findBySellerId()` method
+     - Fetches all products for a specific user (all statuses)
+     - Ordered by creation date (newest first)
+   - **Backend**: Added `ProductController.getMyListings()` controller method
+     - Requires JWT authentication
+     - Returns only current user's products
+   - **Backend**: Added `/api/products/my-listings` route
+     - Placed BEFORE `/:id` route to avoid routing conflicts
+   - **Frontend**: `CampusSwap.showMyListings()` function
+     - Displays modal with user's products
+     - Shows product cards with Edit/Delete buttons
+     - Empty state for users with no listings
+
+#### 3. **Edit Product Feature**
+   - **Frontend**: `CampusSwap.editProduct(productId)` function
+     - Fetches product details from `/api/products/:id`
+     - Pre-fills form with existing data
+     - Sends PUT request to `/api/products/:id` with updates
+   - **Backend**: Uses existing `ProductController.updateProduct()` method
+     - Verifies user owns the product before allowing edits
+     - Validates price and required fields
+     - Returns 403 if user tries to edit someone else's product
+
+#### 4. **Delete Product Feature**
+   - **Frontend**: `CampusSwap.deleteProduct(productId)` function
+     - Shows confirmation dialog (prevents accidental deletions)
+     - Sends DELETE request to `/api/products/:id`
+     - Refreshes product list and My Listings after deletion
+   - **Backend**: Uses existing `ProductController.deleteProduct()` method
+     - Soft delete: marks product as 'WITHDRAWN' (doesn't remove from database)
+     - Preserves data for audit trail and order history
+     - Prevents deletion of products in active orders
+
+#### 5. **DAO Pattern Enhancement**
+   - Added `ProductDAO.findBySellerId()` method
+   - Added `ProductDAO.delete()` method for hard deletes (not currently used)
+   - Maintained separation between data access and business logic
+
+### 🧪 Testing Results
+- ✅ User name displays correctly in navbar after login
+- ✅ My Listings modal loads user's products via API
+- ✅ Edit modal pre-fills with product data
+- ✅ Edit form updates product successfully
+- ✅ Delete confirmation prevents accidental deletions
+- ✅ Delete marks product as WITHDRAWN (soft delete)
+- ✅ Product list and My Listings refresh after edits/deletes
+- ✅ JWT authentication protects all new endpoints
+- ✅ Users cannot edit/delete other users' products (403 error)
+
+### 📚 Key Learning Outcomes
+- **State Management**: Storing user data in application state
+- **Protected Routes**: Implementing authentication checks on endpoints
+- **CRUD Operations**: Complete Create, Read, Update, Delete cycle
+- **Soft vs Hard Delete**: Why we mark records as deleted instead of removing them
+- **User Experience**: Confirmation dialogs for destructive actions
+- **Route Ordering**: Why `/my-listings` must come before `/:id` in Express
+- **Form Pre-filling**: Fetching data and populating form fields
+- **Error Handling**: Proper 401, 403, 404 responses with meaningful messages
+
+### 🎨 UI/UX Improvements
+- **Personalization**: User sees their name in navbar (feels welcoming)
+- **Empty States**: Clear messaging when user has no listings yet
+- **Confirmation Dialogs**: Prevents accidental product deletion
+- **Loading States**: Async operations with proper error handling
+- **Responsive Modals**: My Listings and Edit modals work on all screen sizes
+
+### 🔒 Security Features
+- **Authentication Required**: All product management endpoints require JWT
+- **Ownership Verification**: Users can only edit/delete their own products
+- **Input Validation**: Price must be > 0, required fields checked
+- **Soft Delete**: Preserves data integrity and audit trail
+
+### 📁 Files Modified
+
+**Frontend:**
+- `src/js/main.js`:
+  - Updated `setupAuthUI()` to fetch and display user name
+  - Added `showMyListings()` function
+  - Added `generateMyListingsHTML()` function
+  - Implemented `editProduct()` with pre-filled form
+  - Implemented `deleteProduct()` with confirmation
+- `src/styles/main.css`:
+  - Added `.user-welcome` styles for navbar greeting
+  - Added `.my-listings-container` styles
+  - Added `.my-listing-card` styles
+  - Added `.empty-state` styles
+  - Added `.btn-danger` styles for delete button
+
+**Backend:**
+- `src/dao/ProductDAO.ts`:
+  - Added `findBySellerId()` method
+  - Added `delete()` method (hard delete for future use)
+- `src/controllers/ProductController.ts`:
+  - Added `getMyListings()` controller method
+- `src/routes/productRoutes.js`:
+  - Added `GET /api/products/my-listings` route
+
+### 🔗 GitHub Repository
+- **Status**: Day 20 features complete
+- **Branch**: Will commit to `main` branch
+- **Commit Message**: "feat: Add user profile display, My Listings page, and product edit/delete functionality"
+
+---
+
+## 🎯 Next Phase: Polish & Production Readiness (Days 21-23)
+
+### 📋 Potential Next Features
+- [ ] Remove TEACHING comments for cleaner production code
+- [ ] Add product image uploads (real images, not just emojis)
+- [ ] Implement product reviews and ratings
+- [ ] Add messaging between buyers and sellers
+- [ ] Order management system (checkout flow)
+- [ ] Email notifications for new messages/orders
+- [ ] Advanced search with multiple filters
+- [ ] User profile page with stats and reviews
+- [ ] Admin dashboard for platform management
+
+### 💡 Learning Goals Remaining
+- File uploads with multer
+- Real-time features with WebSockets
+- Email service integration
+- Advanced Prisma queries
+- Production deployment (Vercel, Railway, etc.)
+- Environment variables and secrets management
+
+---
+
+## 🤝 Working with AI Assistant
+
+### ✅ What Works Well
+- Step-by-step feature implementation
+- Teaching comments for learning
+- Professional architecture patterns
+- Complete CRUD cycle with security
+
+### 📝 For Next Session
+When returning, share this log and mention:
+- "Continue CampusSwap project from Day 20"
+- Current status: Full CRUD with user management complete
+- GitHub repo: https://github.com/gemechis22/campusswap-ecommerce
+
+### 🎯 Project Goals Reminder
+- **Course**: EECS 4413 portfolio project
+- **Timeline**: 30 days (until Dec 3, 2025)
+- **Focus**: Real-world project for resume/portfolio
+- **Architecture**: MVC, DAO patterns for course requirements

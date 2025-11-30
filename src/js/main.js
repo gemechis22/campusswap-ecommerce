@@ -14,7 +14,8 @@ const CampusSwap = {
         domain: 'yorku.ca',
         version: '1.0.0',
         debug: true,
-        apiBaseUrl: 'http://localhost:3001/api' // Backend API endpoint
+        apiBaseUrl: 'http://localhost:3001/api', // Backend API endpoint
+        tokenKey: 'campusswap_token' // TEACHING: we store JWT under this key
     },
 
     // Application state
@@ -23,6 +24,7 @@ const CampusSwap = {
         searchTerm: '',
         cart: [],
         products: [], // Will be populated from API
+        categories: [], // TEACHING: Store categories with {id, name, slug}
         user: null,
         isMobile: window.innerWidth <= 768,
         isLoading: false,
@@ -41,11 +43,16 @@ const CampusSwap = {
         this.setupSearch();
         this.setupCategoryFilters();
         this.setupShoppingCart();
+        this.setupAuthUI(); // TEACHING: set up auth buttons depending on login state
+        this.setupSortControls(); // TEACHING: set up sorting dropdown
         
-        // Load user cart from localStorage
-        this.loadCartFromStorage();
+        // Load user cart from API if authenticated
+        if (this.state.isAuthenticated) {
+            this.loadCartFromAPI();
+        }
         
-        // Load products from API
+        // Load categories and products from API (async)
+        this.loadCategoriesFromAPI(); // TEACHING: Load categories first (returns Promise)
         this.loadProductsFromAPI();
         
         console.log('✅ CampusSwap ready!');
@@ -56,7 +63,7 @@ const CampusSwap = {
 // API COMMUNICATION
 // ============================================
 
-CampusSwap.loadProductsFromAPI = async function() {
+CampusSwap.loadProductsFromAPI = async function(sortBy = '', sortOrder = '') {
     try {
         // Show loading state
         this.state.isLoading = true;
@@ -64,8 +71,19 @@ CampusSwap.loadProductsFromAPI = async function() {
         
         console.log('📡 Fetching products from API...');
         
+        // Build query params
+        let url = `${this.config.apiBaseUrl}/products`;
+        const params = new URLSearchParams();
+        
+        if (sortBy) params.append('sortBy', sortBy);
+        if (sortOrder) params.append('sortOrder', sortOrder);
+        
+        if (params.toString()) {
+            url += `?${params.toString()}`;
+        }
+        
         // Fetch products from backend
-        const response = await fetch(`${this.config.apiBaseUrl}/products`);
+        const response = await fetch(url);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -88,6 +106,309 @@ CampusSwap.loadProductsFromAPI = async function() {
         this.state.isLoading = false;
         this.state.error = error.message;
         this.showErrorState(error.message);
+    }
+};
+
+// ============================================
+// AUTH + API HELPERS (TEACHING SECTION)
+// ============================================
+
+// TEACHING: A single helper to call our backend.
+// It automatically adds JSON headers and Authorization if logged in.
+CampusSwap.apiFetch = async function(path, options = {}) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+    const token = localStorage.getItem(this.config.tokenKey);
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${this.config.apiBaseUrl}${path}`, { ...options, headers });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API ${res.status}: ${text}`);
+    }
+    return res.json();
+};
+
+// TEACHING: Setup navbar Sign In / Sign Up / Logout behaviors.
+CampusSwap.setupAuthUI = async function() {
+    const actions = document.querySelector('.navbar-actions');
+    if (!actions) return;
+
+    // TEACHING: Check if logged in first
+    const token = localStorage.getItem(this.config.tokenKey);
+    if (token) {
+        // TEACHING: Fetch user info from backend to display their name
+        // This shows how to use the /api/auth/me endpoint to get current user
+        try {
+            const userData = await this.apiFetch('/auth/me');
+            this.state.user = userData.data; // Store user info in state
+            
+            // TEACHING: Build navbar with user's name and actions
+            // Shows personalized welcome message
+            const adminButton = this.state.user.isAdmin 
+                ? '<button class="btn-secondary btn-admin" data-action="admin">Admin Dashboard</button>' 
+                : '';
+            
+            actions.innerHTML = `
+                <span class="user-welcome">Welcome, <strong>${this.state.user.firstName}</strong>!</span>
+                ${adminButton}
+                <button class="btn-secondary" data-action="my-listings">My Listings</button>
+                <button class="btn-secondary" data-action="purchases">My Purchases</button>
+                <button class="btn-secondary" data-action="sell">Sell Item</button>
+                <button class="btn-secondary" data-action="logout">Logout</button>
+            `;
+            
+            // TEACHING: Attach event listeners to new buttons
+            const adminBtn = actions.querySelector('[data-action="admin"]');
+            const myListingsBtn = actions.querySelector('[data-action="my-listings"]');
+            const purchasesBtn = actions.querySelector('[data-action="purchases"]');
+            const sellBtn = actions.querySelector('[data-action="sell"]');
+            const logoutBtn = actions.querySelector('[data-action="logout"]');
+            
+            if (adminBtn) adminBtn.addEventListener('click', () => this.showAdminDashboard());
+            if (myListingsBtn) myListingsBtn.addEventListener('click', () => this.showMyListings());
+            if (purchasesBtn) purchasesBtn.addEventListener('click', () => this.showPurchaseHistory());
+            if (sellBtn) sellBtn.addEventListener('click', () => this.showSellItemModal());
+            if (logoutBtn) logoutBtn.addEventListener('click', () => this.logout());
+            
+        } catch (err) {
+            // TEACHING: If token is invalid/expired, log out automatically
+            console.warn('Failed to fetch user info, logging out:', err);
+            this.logout();
+        }
+    } else {
+        // User is NOT logged in - attach listeners to existing buttons
+        // TEACHING: Find buttons by their text content to avoid confusion
+        const buttons = Array.from(actions.querySelectorAll('button'));
+        const signInBtn = buttons.find(b => b.textContent.trim() === 'Sign In');
+        const signUpBtn = buttons.find(b => b.textContent.trim() === 'Sign Up');
+        
+        if (signInBtn) signInBtn.addEventListener('click', () => this.showLoginModal());
+        if (signUpBtn) signUpBtn.addEventListener('click', () => this.showRegisterModal());
+    }
+};
+
+CampusSwap.login = async function(email, password) {
+    // TEACHING: POST credentials and store JWT on success
+    const data = await this.apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+    });
+    // TEACHING: Backend returns {success:true, data:{token, user}}
+    // So we need data.data.token (nested data property), not just data.token
+    if (data.data && data.data.token) {
+        localStorage.setItem(this.config.tokenKey, data.data.token);
+    }
+    this.setupAuthUI();
+    // Load cart after login
+    await this.loadCartFromAPI();
+    return data;
+};
+
+CampusSwap.register = async function(payload) {
+    // payload: { firstName, lastName, email, password }
+    const data = await this.apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    });
+    // TEACHING: Backend returns {success:true, data:{token, user}}
+    // So we need data.data.token (nested data property), not just data.token
+    if (data.data && data.data.token) {
+        localStorage.setItem(this.config.tokenKey, data.data.token);
+    }
+    this.setupAuthUI();
+    // Load cart after registration
+    await this.loadCartFromAPI();
+    return data;
+};
+
+CampusSwap.logout = function() {
+    localStorage.removeItem(this.config.tokenKey);
+    this.state.cart = []; // Clear cart on logout
+    this.updateCartDisplay();
+    // Reload UI state
+    window.location.reload();
+};
+
+// ============================================
+// SIMPLE MODAL BUILDERS (TEACHING)
+// ============================================
+
+CampusSwap.closeAnyModal = function() {
+    document.querySelectorAll('.form-modal').forEach(m => m.remove());
+};
+
+CampusSwap.showLoginModal = function() {
+    this.closeAnyModal();
+    const modal = document.createElement('div');
+    modal.className = 'form-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header"><h3>Sign In</h3><button class="modal-close">✕</button></div>
+            <div class="modal-body">
+                <!-- TEACHING: We collect credentials and call /auth/login -->
+                <label>Email</label>
+                <input type="email" id="login-email" placeholder="you@yorku.ca" />
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" />
+                <small style="color: var(--medium-gray); margin-top: -8px; display: block;">Min 8 characters</small>
+                <button class="btn-primary" id="login-submit">Sign In</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('#login-submit').addEventListener('click', async () => {
+        const email = modal.querySelector('#login-email').value.trim();
+        const password = modal.querySelector('#login-password').value;
+        try {
+            await this.login(email, password);
+            modal.remove();
+            alert('Signed in successfully!');
+            // TEACHING: Reload page so navbar updates to Sell/Logout
+            window.location.reload();
+        } catch (err) {
+            alert('Login failed: ' + err.message);
+        }
+    });
+};
+
+CampusSwap.showRegisterModal = function() {
+    this.closeAnyModal();
+    const modal = document.createElement('div');
+    modal.className = 'form-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header"><h3>Sign Up</h3><button class="modal-close">✕</button></div>
+            <div class="modal-body">
+                <!-- TEACHING: We map fields to backend register DTO -->
+                <label>First Name</label>
+                <input type="text" id="reg-first" />
+                <label>Last Name</label>
+                <input type="text" id="reg-last" />
+                <label>Email</label>
+                <input type="email" id="reg-email" placeholder="you@yorku.ca" />
+                <label>Password</label>
+                <input type="password" id="reg-password" />
+                <small style="color: var(--medium-gray); margin-top: -8px; display: block;">Min 8 characters required</small>
+                <button class="btn-primary" id="reg-submit">Create Account</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('#reg-submit').addEventListener('click', async () => {
+        const payload = {
+            firstName: modal.querySelector('#reg-first').value.trim(),
+            lastName: modal.querySelector('#reg-last').value.trim(),
+            email: modal.querySelector('#reg-email').value.trim(),
+            password: modal.querySelector('#reg-password').value,
+            program: 'General' // TEACHING: backend requires program field
+        };
+        try {
+            await this.register(payload);
+            modal.remove();
+            alert('Account created! You are now signed in.');
+            // TEACHING: Force UI refresh so navbar updates
+            window.location.reload();
+        } catch (err) {
+            alert('Registration failed: ' + err.message);
+        }
+    });
+};
+
+CampusSwap.showSellItemModal = function() {
+    // TEACHING: Minimal form that posts to /products using JWT
+    const token = localStorage.getItem(this.config.tokenKey);
+    if (!token) return this.showLoginModal();
+    this.closeAnyModal();
+    const modal = document.createElement('div');
+    modal.className = 'form-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header"><h3>Post an Item for Sale</h3><button class="modal-close">✕</button></div>
+            <div class="modal-body">
+                <label>Title</label>
+                <input type="text" id="sell-title" placeholder="e.g., Calculus Textbook" />
+                <label>Price (CAD)</label>
+                <input type="number" id="sell-price" min="0" step="0.01" />
+                <label>Quantity Available</label>
+                <input type="number" id="sell-quantity" min="1" value="1" />
+                <label>Category</label>
+                <select id="sell-category">
+                    <option value="textbooks">Textbooks</option>
+                    <option value="electronics">Electronics</option>
+                    <option value="lab-equipment">Lab Equipment</option>
+                    <option value="stationery">Stationery</option>
+                </select>
+                <label>Course Code</label>
+                <input type="text" id="sell-course" placeholder="MATH 1013" />
+                <label>Condition</label>
+                <select id="sell-condition">
+                    <option value="LIKE_NEW">LIKE_NEW</option>
+                    <option value="EXCELLENT">EXCELLENT</option>
+                    <option value="GOOD">GOOD</option>
+                    <option value="FAIR">FAIR</option>
+                </select>
+                <label>Description</label>
+                <textarea id="sell-desc" rows="3" placeholder="Details buyers should know..."></textarea>
+                <label>Emoji/Image</label>
+                <input type="text" id="sell-image" placeholder="📖 or image URL" />
+                <button class="btn-primary" id="sell-submit">Post Item</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('#sell-submit').addEventListener('click', async () => {
+        const categorySlug = modal.querySelector('#sell-category').value;
+        // TEACHING: Map slug to categoryId using loaded categories
+        const category = this.state.categories.find(c => c.slug === categorySlug);
+        if (!category) {
+            alert('Category not found. Please refresh and try again.');
+            return;
+        }
+        const payload = {
+            title: modal.querySelector('#sell-title').value.trim(),
+            price: parseFloat(modal.querySelector('#sell-price').value || '0'),
+            quantity: parseInt(modal.querySelector('#sell-quantity').value || '1'),
+            description: modal.querySelector('#sell-desc').value.trim(),
+            courseCode: modal.querySelector('#sell-course').value.trim(),
+            condition: modal.querySelector('#sell-condition').value,
+            imageUrl: modal.querySelector('#sell-image').value.trim() || '📦',
+            categoryId: category.id // TEACHING: Backend expects categoryId, not slug
+        };
+        try {
+            const result = await this.apiFetch('/products', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            alert('Item posted!');
+            modal.remove();
+            // Refresh list to include new product
+            await this.loadProductsFromAPI();
+        } catch (err) {
+            alert('Failed to post item: ' + err.message);
+        }
+    });
+};
+
+// TEACHING: Load categories so we can map slug→ID when posting products
+CampusSwap.loadCategoriesFromAPI = async function() {
+    try {
+        // Backend doesn't have /categories endpoint yet, so extract from products
+        const response = await fetch(`${this.config.apiBaseUrl}/products`);
+        if (!response.ok) return;
+        const data = await response.json();
+        // Extract unique categories
+        const catMap = new Map();
+        data.data.forEach(p => {
+            if (p.category && !catMap.has(p.category.slug)) {
+                catMap.set(p.category.slug, { id: p.categoryId, ...p.category });
+            }
+        });
+        this.state.categories = Array.from(catMap.values());
+        console.log('📂 Loaded categories:', this.state.categories);
+    } catch (err) {
+        console.warn('Could not load categories:', err);
     }
 };
 
@@ -381,6 +702,32 @@ CampusSwap.highlightActiveCategory = function(activeCard) {
 };
 
 // ============================================
+// SORTING
+// ============================================
+
+CampusSwap.setupSortControls = function() {
+    const sortDropdown = document.getElementById('sortBy');
+    
+    if (!sortDropdown) {
+        console.warn('⚠️ Sort dropdown not found');
+        return;
+    }
+    
+    sortDropdown.addEventListener('change', async (e) => {
+        const value = e.target.value;
+        console.log(`🔄 Sorting by: ${value}`);
+        
+        // Parse the value (format: "field-order")
+        const [sortBy, sortOrder] = value.split('-');
+        
+        // Reload products with sorting
+        await this.loadProductsFromAPI(sortBy, sortOrder);
+    });
+    
+    console.log('🔄 Sort controls initialized');
+};
+
+// ============================================
 // PRODUCT FILTERING & DISPLAY
 // ============================================
 
@@ -454,6 +801,11 @@ CampusSwap.renderProducts = function(products) {
                     <h3 class="product-title">${product.title}</h3>
                     <p class="product-course">${product.courseName || 'General'} • ${product.condition} Condition</p>
                     <div class="product-price">$${parseFloat(product.price).toFixed(2)}</div>
+                    <div class="product-inventory">
+                        <span class="inventory-badge ${(product.quantity || 0) < 5 ? 'low-stock' : ''}">
+                            ${(product.quantity || 0) < 5 ? '⚠️ Only ' : ''}${product.quantity || 0} in stock
+                        </span>
+                    </div>
                     <div class="product-seller">
                         <span class="seller-name">@${product.seller?.username || 'anonymous'}</span>
                         <span class="seller-rating">⭐ ${product.seller?.rating || '4.5'}</span>
@@ -535,47 +887,97 @@ CampusSwap.createCartCounter = function() {
     });
 };
 
-CampusSwap.addToCart = function(productId) {
+CampusSwap.addToCart = async function(productId) {
     const product = this.state.products.find(p => p.id === productId);
     if (!product) return;
     
-    // Check if item already in cart
-    const existingItem = this.state.cart.find(item => item.productId === productId);
-    
-    if (existingItem) {
-        existingItem.quantity += 1;
-    } else {
-        this.state.cart.push({
-            productId: productId,
-            quantity: 1,
-            dateAdded: new Date().toISOString()
-        });
-    }
-    
-    this.updateCartDisplay();
-    this.saveCartToStorage();
-    this.showCartNotification(product.title);
-    
-    console.log(`🛒 Added ${product.title} to cart`);
-};
-
-CampusSwap.removeFromCart = function(productId) {
-    this.state.cart = this.state.cart.filter(item => item.productId !== productId);
-    this.updateCartDisplay();
-    this.saveCartToStorage();
-};
-
-CampusSwap.updateCartQuantity = function(productId, newQuantity) {
-    if (newQuantity <= 0) {
-        this.removeFromCart(productId);
+    // Check if user is logged in
+    if (!this.state.isAuthenticated) {
+        alert('Please sign in to add items to cart');
         return;
     }
     
-    const item = this.state.cart.find(item => item.productId === productId);
-    if (item) {
-        item.quantity = newQuantity;
-        this.updateCartDisplay();
-        this.saveCartToStorage();
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/cart`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            },
+            body: JSON.stringify({
+                productId: productId,
+                quantity: 1
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await this.loadCartFromAPI();
+            this.showCartNotification(product.title);
+            console.log(`🛒 Added ${product.title} to cart`);
+        } else {
+            alert(data.message || 'Failed to add item to cart');
+        }
+    } catch (error) {
+        console.error('❌ Error adding to cart:', error);
+        alert('Failed to add item to cart');
+    }
+};
+
+CampusSwap.removeFromCart = async function(productId) {
+    if (!this.state.isAuthenticated) return;
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/cart/${productId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await this.loadCartFromAPI();
+            console.log('🛒 Item removed from cart');
+        } else {
+            alert(data.message || 'Failed to remove item');
+        }
+    } catch (error) {
+        console.error('❌ Error removing from cart:', error);
+        alert('Failed to remove item from cart');
+    }
+};
+
+CampusSwap.updateCartQuantity = async function(productId, newQuantity) {
+    if (newQuantity <= 0) {
+        await this.removeFromCart(productId);
+        return;
+    }
+    
+    if (!this.state.isAuthenticated) return;
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/cart/${productId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            },
+            body: JSON.stringify({ quantity: newQuantity })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await this.loadCartFromAPI();
+        } else {
+            alert(data.message || 'Failed to update quantity');
+        }
+    } catch (error) {
+        console.error('❌ Error updating cart:', error);
+        alert('Failed to update cart');
     }
 };
 
@@ -590,7 +992,8 @@ CampusSwap.updateCartDisplay = function() {
 
 CampusSwap.getCartTotal = function() {
     return this.state.cart.reduce((total, item) => {
-        const product = this.state.products.find(p => p.id === item.productId);
+        // Check if product details are included in cart item (from API)
+        const product = item.product || this.state.products.find(p => p.id === item.productId);
         return total + (product ? parseFloat(product.price) * item.quantity : 0);
     }, 0);
 };
@@ -652,7 +1055,8 @@ CampusSwap.generateCartModalHTML = function() {
     }
     
     const cartItems = this.state.cart.map(item => {
-        const product = this.state.products.find(p => p.id === item.productId);
+        // Use product from cart item (API) or find in products array
+        const product = item.product || this.state.products.find(p => p.id === item.productId);
         if (!product) return '';
         
         // Get emoji for category
@@ -729,7 +1133,50 @@ CampusSwap.showCartNotification = function(productTitle) {
 };
 
 // ============================================
-// LOCAL STORAGE FUNCTIONALITY
+// CART API FUNCTIONALITY
+// ============================================
+
+CampusSwap.loadCartFromAPI = async function() {
+    if (!this.state.isAuthenticated) {
+        this.state.cart = [];
+        this.updateCartDisplay();
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/cart`, {
+            headers: {
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Convert API format to local state format
+            this.state.cart = data.data.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                dateAdded: item.createdAt,
+                product: item.product // Include full product details
+            }));
+            
+            this.updateCartDisplay();
+            console.log(`🛒 Loaded ${this.state.cart.length} items from cart API`);
+        }
+    } catch (error) {
+        console.error('❌ Error loading cart:', error);
+        this.state.cart = [];
+        this.updateCartDisplay();
+    }
+};
+
+// ============================================
+// LOCAL STORAGE FUNCTIONALITY (DEPRECATED - Using API now)
 // ============================================
 
 CampusSwap.loadCartFromStorage = function() {
@@ -804,9 +1251,891 @@ CampusSwap.isProductLiked = function(productId) {
     return likedProducts.includes(productId);
 };
 
-CampusSwap.checkout = function() {
+CampusSwap.checkout = async function() {
     console.log('🛒 Starting checkout process...');
-    alert(`Checkout functionality will be implemented in Phase 3!\n\nYour cart total: $${this.getCartTotal().toFixed(2)}\nItems: ${this.state.cart.length}`);
+    
+    if (!this.state.isAuthenticated) {
+        alert('Please sign in to checkout');
+        return;
+    }
+    
+    if (this.state.cart.length === 0) {
+        alert('Your cart is empty');
+        return;
+    }
+    
+    // Show checkout modal
+    this.showCheckoutModal();
+};
+
+CampusSwap.showCheckoutModal = function() {
+    const modal = document.createElement('div');
+    modal.className = 'cart-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Checkout</h2>
+                <button class="modal-close">✕</button>
+            </div>
+            <div class="checkout-form">
+                <h3>Order Summary</h3>
+                <div class="order-summary">
+                    ${this.state.cart.map(item => {
+                        const product = item.product || this.state.products.find(p => p.id === item.productId);
+                        if (!product) return '';
+                        return `
+                            <div class="summary-item">
+                                <span>${product.title} x${item.quantity}</span>
+                                <span>$${(product.price * item.quantity).toFixed(2)}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                    <div class="summary-total">
+                        <strong>Total:</strong>
+                        <strong>$${this.getCartTotal().toFixed(2)}</strong>
+                    </div>
+                </div>
+                
+                <h3>Payment Method</h3>
+                <select id="paymentMethod" class="form-input">
+                    <option value="CASH">Cash on Pickup</option>
+                    <option value="E_TRANSFER">E-Transfer</option>
+                    <option value="CREDIT_CARD">Credit Card</option>
+                </select>
+                
+                <h3>Meetup Location</h3>
+                <input type="text" id="meetupLocation" class="form-input" 
+                       placeholder="e.g., York University Library" />
+                
+                <h3>Notes (Optional)</h3>
+                <textarea id="buyerNotes" class="form-input" rows="3" 
+                          placeholder="Any special instructions for the seller..."></textarea>
+                
+                <button class="btn-primary" onclick="CampusSwap.processCheckout()">
+                    Place Order - $${this.getCartTotal().toFixed(2)}
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close button handler
+    modal.querySelector('.modal-close').addEventListener('click', () => {
+        modal.remove();
+    });
+};
+
+CampusSwap.processCheckout = async function() {
+    const paymentMethod = document.getElementById('paymentMethod').value;
+    const meetupLocation = document.getElementById('meetupLocation').value;
+    const buyerNotes = document.getElementById('buyerNotes').value;
+    
+    if (!meetupLocation) {
+        alert('Please enter a meetup location');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/orders/checkout`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            },
+            body: JSON.stringify({
+                paymentMethod,
+                meetupLocation,
+                buyerNotes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Close checkout modal
+            document.querySelector('.cart-modal')?.remove();
+            
+            // Show success message
+            alert(`✅ Order placed successfully!\n\nOrder Total: $${data.data.totalAmount.toFixed(2)}\nCheck your purchase history for details.`);
+            
+            // Reload cart and products
+            await this.loadCartFromAPI();
+            await this.loadProductsFromAPI();
+            
+            console.log('✅ Checkout completed successfully');
+        } else {
+            alert(data.message || 'Checkout failed');
+        }
+    } catch (error) {
+        console.error('❌ Error during checkout:', error);
+        alert('Checkout failed. Please try again.');
+    }
+};
+
+// ============================================
+// MY LISTINGS - User's Posted Products
+// ============================================
+
+/**
+ * TEACHING: Show "My Listings" modal
+ * Displays all products posted by the current user
+ * Allows editing and deleting own products
+ */
+CampusSwap.showMyListings = async function() {
+    // TEACHING: Check authentication first
+    const token = localStorage.getItem(this.config.tokenKey);
+    if (!token) {
+        alert('Please log in to view your listings');
+        return this.showLoginModal();
+    }
+    
+    // TEACHING: Filter products to only show user's listings
+    // We'll fetch from API endpoint /api/products/my-listings
+    try {
+        const response = await this.apiFetch('/products/my-listings');
+        const myProducts = response.data || [];
+        
+        // Create modal
+        this.closeAnyModal();
+        const modal = document.createElement('div');
+        modal.className = 'form-modal';
+        modal.innerHTML = this.generateMyListingsHTML(myProducts);
+        document.body.appendChild(modal);
+        
+        // Close handlers
+        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        
+    } catch (err) {
+        console.error('Failed to load listings:', err);
+        alert('Could not load your listings. Please try again.');
+    }
+};
+
+/**
+ * TEACHING: Generate HTML for My Listings modal
+ */
+CampusSwap.generateMyListingsHTML = function(products) {
+    if (products.length === 0) {
+        return `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>My Listings</h2>
+                    <button class="modal-close">✕</button>
+                </div>
+                <div class="empty-state">
+                    <div class="empty-icon">📦</div>
+                    <h3>No listings yet</h3>
+                    <p>You haven't posted any items for sale.</p>
+                    <button class="btn-primary" onclick="CampusSwap.closeAnyModal(); CampusSwap.showSellItemModal();">
+                        Post Your First Item
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    const productCards = products.map(p => {
+        const categoryEmojis = {
+            'textbooks': '📖',
+            'electronics': '💻',
+            'lab-equipment': '⚗️',
+            'stationery': '📐'
+        };
+        const categorySlug = p.category?.slug || (typeof p.category === 'string' ? p.category.toLowerCase() : null);
+        const emoji = categoryEmojis[categorySlug] || '📦';
+        
+        return `
+            <div class="my-listing-card">
+                <div class="listing-image">${p.imageUrl || emoji}</div>
+                <div class="listing-info">
+                    <h4>${p.title}</h4>
+                    <p>${p.courseCode || 'General'} • ${p.condition}</p>
+                    <strong>$${parseFloat(p.price).toFixed(2)}</strong>
+                </div>
+                <div class="listing-actions">
+                    <button class="btn-secondary btn-sm" onclick="CampusSwap.editProduct('${p.id}')">
+                        ✏️ Edit
+                    </button>
+                    <button class="btn-danger btn-sm" onclick="CampusSwap.deleteProduct('${p.id}')">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    return `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>My Listings (${products.length})</h2>
+                <button class="modal-close">✕</button>
+            </div>
+            <div class="my-listings-container">
+                ${productCards}
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="CampusSwap.closeAnyModal(); CampusSwap.showSellItemModal();">
+                    + Post New Item
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+/**
+ * TEACHING: Edit product
+ * Shows a modal pre-filled with product data, allows user to update it
+ */
+CampusSwap.editProduct = async function(productId) {
+    console.log('✏️ Edit product:', productId);
+    
+    try {
+        // TEACHING: Fetch the product details from backend
+        const response = await this.apiFetch(`/products/${productId}`);
+        const product = response.data;
+        
+        // Close any existing modals
+        this.closeAnyModal();
+        
+        // TEACHING: Create edit modal with pre-filled data
+        const modal = document.createElement('div');
+        modal.className = 'form-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Item</h3>
+                    <button class="modal-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <label>Title</label>
+                    <input type="text" id="edit-title" value="${product.title}" />
+                    
+                    <label>Price (CAD)</label>
+                    <input type="number" id="edit-price" min="0" step="0.01" value="${product.price}" />
+                    
+                    <label>Category</label>
+                    <select id="edit-category">
+                        <option value="textbooks" ${product.category?.slug === 'textbooks' ? 'selected' : ''}>Textbooks</option>
+                        <option value="electronics" ${product.category?.slug === 'electronics' ? 'selected' : ''}>Electronics</option>
+                        <option value="lab-equipment" ${product.category?.slug === 'lab-equipment' ? 'selected' : ''}>Lab Equipment</option>
+                        <option value="stationery" ${product.category?.slug === 'stationery' ? 'selected' : ''}>Stationery</option>
+                    </select>
+                    
+                    <label>Course Code</label>
+                    <input type="text" id="edit-course" value="${product.courseCode || ''}" placeholder="MATH 1013" />
+                    
+                    <label>Condition</label>
+                    <select id="edit-condition">
+                        <option value="LIKE_NEW" ${product.condition === 'LIKE_NEW' ? 'selected' : ''}>LIKE_NEW</option>
+                        <option value="EXCELLENT" ${product.condition === 'EXCELLENT' ? 'selected' : ''}>EXCELLENT</option>
+                        <option value="GOOD" ${product.condition === 'GOOD' ? 'selected' : ''}>GOOD</option>
+                        <option value="FAIR" ${product.condition === 'FAIR' ? 'selected' : ''}>FAIR</option>
+                    </select>
+                    
+                    <label>Description</label>
+                    <textarea id="edit-desc" rows="3">${product.description}</textarea>
+                    
+                    <label>Emoji/Image</label>
+                    <input type="text" id="edit-image" value="${product.imageUrl || ''}" placeholder="📖 or image URL" />
+                    
+                    <button class="btn-primary" id="edit-submit">Save Changes</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Close handlers
+        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        
+        // TEACHING: Submit handler - sends PUT request to update product
+        modal.querySelector('#edit-submit').addEventListener('click', async () => {
+            const categorySlug = modal.querySelector('#edit-category').value;
+            
+            // Map slug to categoryId
+            const category = this.state.categories.find(c => c.slug === categorySlug);
+            if (!category) {
+                alert('Category not found. Please refresh and try again.');
+                return;
+            }
+            
+            const updatedData = {
+                title: modal.querySelector('#edit-title').value.trim(),
+                price: parseFloat(modal.querySelector('#edit-price').value || '0'),
+                description: modal.querySelector('#edit-desc').value.trim(),
+                courseCode: modal.querySelector('#edit-course').value.trim(),
+                condition: modal.querySelector('#edit-condition').value,
+                imageUrl: modal.querySelector('#edit-image').value.trim() || product.imageUrl,
+                categoryId: category.id
+            };
+            
+            try {
+                // TEACHING: PUT request to /api/products/:id
+                await this.apiFetch(`/products/${productId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(updatedData)
+                });
+                
+                alert('Product updated successfully!');
+                modal.remove();
+                
+                // TEACHING: Refresh product list and My Listings modal
+                await this.loadProductsFromAPI();
+                await this.showMyListings(); // Reload My Listings
+                
+            } catch (err) {
+                alert('Failed to update product: ' + err.message);
+            }
+        });
+        
+    } catch (err) {
+        console.error('Failed to fetch product for editing:', err);
+        alert('Could not load product details. Please try again.');
+    }
+};
+
+/**
+ * TEACHING: Delete product
+ * Confirms with user, then sends DELETE request to backend
+ */
+CampusSwap.deleteProduct = async function(productId) {
+    console.log('🗑️ Delete product:', productId);
+    
+    // TEACHING: Always confirm destructive actions
+    const confirmed = confirm('Are you sure you want to delete this listing? This action cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+        // TEACHING: DELETE request to /api/products/:id
+        await this.apiFetch(`/products/${productId}`, {
+            method: 'DELETE'
+        });
+        
+        alert('Product deleted successfully!');
+        
+        // TEACHING: Refresh product list and My Listings modal
+        await this.loadProductsFromAPI();
+        await this.showMyListings(); // Reload My Listings
+        
+    } catch (err) {
+        console.error('Failed to delete product:', err);
+        alert('Could not delete product: ' + err.message);
+    }
+};
+
+// ============================================
+// PURCHASE HISTORY - User's Past Orders
+// ============================================
+
+CampusSwap.showPurchaseHistory = async function() {
+    const token = localStorage.getItem(this.config.tokenKey);
+    if (!token) {
+        alert('Please log in to view your purchase history');
+        return this.showLoginModal();
+    }
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/orders/purchases`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.message || 'Failed to fetch purchase history');
+        }
+        
+        const orders = data.data || [];
+        
+        // Create modal
+        this.closeAnyModal();
+        const modal = document.createElement('div');
+        modal.className = 'form-modal';
+        modal.innerHTML = this.generatePurchaseHistoryHTML(orders);
+        document.body.appendChild(modal);
+        
+        // Close handlers
+        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+        
+    } catch (err) {
+        console.error('Failed to load purchase history:', err);
+        alert('Could not load purchase history: ' + err.message);
+    }
+};
+
+CampusSwap.generatePurchaseHistoryHTML = function(orders) {
+    if (orders.length === 0) {
+        return `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>My Purchase History</h3>
+                    <button class="modal-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="empty-state">
+                        <div class="empty-icon">📦</div>
+                        <h3>No purchases yet</h3>
+                        <p>Start shopping to see your order history here!</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    const ordersHTML = orders.map(order => {
+        const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        const statusColors = {
+            'PENDING': 'orange',
+            'PROCESSING': 'blue',
+            'COMPLETED': 'green',
+            'CANCELLED': 'red'
+        };
+        
+        const statusColor = statusColors[order.status] || 'gray';
+        
+        const itemsHTML = order.orderItems.map(item => `
+            <div class="order-item">
+                <span class="item-name">${item.product.title}</span>
+                <span class="item-quantity">x${item.quantity}</span>
+                <span class="item-price">$${(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+        `).join('');
+        
+        return `
+            <div class="order-card">
+                <div class="order-header">
+                    <div>
+                        <strong>Order #${order.orderNumber}</strong>
+                        <span class="order-date">${orderDate}</span>
+                    </div>
+                    <span class="order-status" style="background-color: ${statusColor};">
+                        ${order.status}
+                    </span>
+                </div>
+                <div class="order-items">
+                    ${itemsHTML}
+                </div>
+                <div class="order-footer">
+                    <div class="order-seller">
+                        <strong>Seller:</strong> ${order.seller.firstName} ${order.seller.lastName}
+                    </div>
+                    ${order.meetupLocation ? `
+                        <div class="order-meetup">
+                            <strong>Meetup:</strong> ${order.meetupLocation}
+                        </div>
+                    ` : ''}
+                    <div class="order-total">
+                        <strong>Total:</strong> $${order.totalAmount.toFixed(2)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    return `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>My Purchase History</h3>
+                <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="orders-list">
+                    ${ordersHTML}
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+// ============================================
+// ADMIN DASHBOARD
+// ============================================
+
+CampusSwap.showAdminDashboard = async function() {
+    if (!this.state.user?.isAdmin) {
+        alert('Admin access required');
+        return;
+    }
+    
+    try {
+        // Fetch dashboard data
+        const response = await fetch(`${this.config.apiBaseUrl}/admin/dashboard`, {
+            headers: {
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.message || 'Failed to load dashboard');
+        }
+        
+        // Create modal
+        this.closeAnyModal();
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.innerHTML = this.generateAdminDashboardHTML(data.data);
+        document.body.appendChild(modal);
+        
+        // Close handlers
+        modal.querySelector('.modal-close')?.addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+        
+        // Initialize charts
+        this.initAdminCharts();
+        
+        // Tab switching
+        const tabs = modal.querySelectorAll('.admin-tab');
+        const panels = modal.querySelectorAll('.admin-panel');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                
+                tabs.forEach(t => t.classList.remove('active'));
+                panels.forEach(p => p.classList.remove('active'));
+                
+                tab.classList.add('active');
+                modal.querySelector(`#${target}`)?.classList.add('active');
+                
+                // Load tab-specific data
+                if (target === 'sales') this.loadSalesReport();
+                if (target === 'inventory') this.loadInventory();
+                if (target === 'users') this.loadUsers();
+            });
+        });
+        
+    } catch (error) {
+        console.error('❌ Admin dashboard error:', error);
+        alert('Failed to load admin dashboard');
+    }
+};
+
+CampusSwap.generateAdminDashboardHTML = function(data) {
+    const { stats, recentOrders, topProducts } = data;
+    
+    return `
+        <div class="modal-content admin-content">
+            <div class="modal-header">
+                <h2>🛡️ Admin Dashboard</h2>
+                <button class="modal-close">✕</button>
+            </div>
+            
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="overview">Overview</button>
+                <button class="admin-tab" data-tab="sales">Sales Reports</button>
+                <button class="admin-tab" data-tab="inventory">Inventory</button>
+                <button class="admin-tab" data-tab="users">Users</button>
+            </div>
+            
+            <div class="admin-body">
+                <!-- Overview Panel -->
+                <div id="overview" class="admin-panel active">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-value">${stats.totalUsers}</div>
+                            <div class="stat-label">Total Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-value">${stats.totalProducts}</div>
+                            <div class="stat-label">Products Listed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🛒</div>
+                            <div class="stat-value">${stats.totalOrders}</div>
+                            <div class="stat-label">Total Orders</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">💰</div>
+                            <div class="stat-value">$${stats.totalRevenue.toFixed(2)}</div>
+                            <div class="stat-label">Total Revenue</div>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-section">
+                        <h3>Recent Orders</h3>
+                        <div class="orders-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Order #</th>
+                                        <th>Buyer</th>
+                                        <th>Seller</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${recentOrders.map(order => `
+                                        <tr>
+                                            <td>${order.orderNumber}</td>
+                                            <td>${order.buyer.firstName} ${order.buyer.lastName}</td>
+                                            <td>${order.seller.firstName} ${order.seller.lastName}</td>
+                                            <td>$${order.totalAmount.toFixed(2)}</td>
+                                            <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
+                                            <td>${new Date(order.createdAt).toLocaleDateString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sales Panel -->
+                <div id="sales" class="admin-panel">
+                    <div class="admin-section">
+                        <div class="section-header">
+                            <h3>Sales Report</h3>
+                            <div class="date-filters">
+                                <input type="date" id="startDate" />
+                                <input type="date" id="endDate" />
+                                <button class="btn-primary btn-sm" onclick="CampusSwap.loadSalesReport()">Generate</button>
+                                <button class="btn-secondary btn-sm" onclick="CampusSwap.exportSalesReport()">Export PDF</button>
+                            </div>
+                        </div>
+                        <canvas id="salesChart" width="400" height="200"></canvas>
+                        <div id="salesData"></div>
+                    </div>
+                </div>
+                
+                <!-- Inventory Panel -->
+                <div id="inventory" class="admin-panel">
+                    <div class="admin-section">
+                        <h3>Inventory Management</h3>
+                        <div id="inventoryData">Loading...</div>
+                    </div>
+                </div>
+                
+                <!-- Users Panel -->
+                <div id="users" class="admin-panel">
+                    <div class="admin-section">
+                        <h3>User Management</h3>
+                        <div id="usersData">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+CampusSwap.initAdminCharts = function() {
+    // Charts will be initialized when Chart.js is loaded
+    console.log('📊 Admin charts ready');
+};
+
+CampusSwap.loadSalesReport = async function() {
+    const startDate = document.getElementById('startDate')?.value;
+    const endDate = document.getElementById('endDate')?.value;
+    
+    try {
+        let url = `${this.config.apiBaseUrl}/admin/sales`;
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        if (params.toString()) url += `?${params.toString()}`;
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${this.getAuthToken()}` }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const salesData = document.getElementById('salesData');
+            salesData.innerHTML = `
+                <div class="sales-summary">
+                    <p><strong>Total Orders:</strong> ${data.data.summary.totalOrders}</p>
+                    <p><strong>Total Revenue:</strong> $${data.data.summary.totalRevenue.toFixed(2)}</p>
+                    <p><strong>Average Order:</strong> $${data.data.summary.averageOrderValue.toFixed(2)}</p>
+                </div>
+            `;
+            
+            // TODO: Draw chart with Chart.js
+        }
+    } catch (error) {
+        console.error('❌ Sales report error:', error);
+    }
+};
+
+CampusSwap.loadInventory = async function() {
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/admin/inventory`, {
+            headers: { 'Authorization': `Bearer ${this.getAuthToken()}` }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const inventoryData = document.getElementById('inventoryData');
+            inventoryData.innerHTML = `
+                <div class="inventory-stats">
+                    <p><strong>Low Stock Items:</strong> ${data.data.stats.lowStockCount}</p>
+                    <p><strong>Out of Stock:</strong> ${data.data.stats.outOfStockCount}</p>
+                    <p><strong>Total Inventory Value:</strong> $${data.data.stats.totalValue.toFixed(2)}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Seller</th>
+                            <th>Quantity</th>
+                            <th>Price</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.data.products.map(product => `
+                            <tr class="${product.quantity < 5 ? 'low-stock' : ''}">
+                                <td>${product.title}</td>
+                                <td>${product.seller.firstName} ${product.seller.lastName}</td>
+                                <td>${product.quantity}</td>
+                                <td>$${product.price.toFixed(2)}</td>
+                                <td><span class="status-badge">${product.status}</span></td>
+                                <td>
+                                    <button class="btn-sm" onclick="CampusSwap.updateInventory('${product.id}', ${product.quantity})">
+                                        Update
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ Inventory error:', error);
+    }
+};
+
+CampusSwap.loadUsers = async function() {
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/admin/users`, {
+            headers: { 'Authorization': `Bearer ${this.getAuthToken()}` }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const usersData = document.getElementById('usersData');
+            usersData.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Program</th>
+                            <th>Products</th>
+                            <th>Purchases</th>
+                            <th>Admin</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.data.map(user => `
+                            <tr>
+                                <td>${user.firstName} ${user.lastName}</td>
+                                <td>${user.email}</td>
+                                <td>${user.program || 'N/A'}</td>
+                                <td>${user._count.products}</td>
+                                <td>${user._count.purchases}</td>
+                                <td>${user.isAdmin ? '✅' : '❌'}</td>
+                                <td>
+                                    <button class="btn-sm" onclick="CampusSwap.toggleAdmin('${user.id}', ${user.isAdmin})">
+                                        ${user.isAdmin ? 'Revoke' : 'Grant'} Admin
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ Users error:', error);
+    }
+};
+
+CampusSwap.updateInventory = async function(productId, currentQty) {
+    const newQty = prompt(`Enter new quantity (current: ${currentQty}):`, currentQty);
+    if (newQty === null) return;
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/admin/products/${productId}/quantity`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            },
+            body: JSON.stringify({ quantity: parseInt(newQty) })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Inventory updated successfully');
+            this.loadInventory();
+        } else {
+            alert(data.message || 'Failed to update inventory');
+        }
+    } catch (error) {
+        console.error('❌ Update inventory error:', error);
+        alert('Failed to update inventory');
+    }
+};
+
+CampusSwap.toggleAdmin = async function(userId, isCurrentlyAdmin) {
+    if (!confirm(`${isCurrentlyAdmin ? 'Revoke' : 'Grant'} admin privileges for this user?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${this.config.apiBaseUrl}/admin/users/${userId}/toggle-admin`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            this.loadUsers();
+        } else {
+            alert(data.message || 'Failed to update admin status');
+        }
+    } catch (error) {
+        console.error('❌ Toggle admin error:', error);
+        alert('Failed to update admin status');
+    }
+};
+
+CampusSwap.exportSalesReport = function() {
+    alert('PDF export will be implemented next! For now, use browser Print to PDF (Ctrl+P)');
+    window.print();
 };
 
 // ============================================

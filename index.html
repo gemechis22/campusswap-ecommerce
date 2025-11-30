@@ -1,39 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Meta Information: Tells the browser about our page -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="CampusSwap - York University student marketplace for textbooks, electronics, and academic essentials">
-    
-    <!-- Page Title (appears in browser tab) -->
+    <meta name="description" content="CampusSwap - York University student marketplace">
     <title>CampusSwap - Student Marketplace | York University</title>
-    
-    <!-- Link to our CSS stylesheet -->
     <link rel="stylesheet" href="src/styles/main.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <!-- NAVIGATION SECTION -->
-     <header class="main-header">
+    <!-- Navigation Bar -->
+    <header class="main-header">
         <nav class="navbar">
-            <!-- Logo/Brand -->
             <div class="navbar-brand">
                 <h1>CampusSwap</h1>
                 <span class="university">York University</span>
             </div>
             
-            <!-- Navigation Menu -->
+            <!-- Mobile Menu Toggle -->
+            <button class="mobile-menu-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            
+            <!-- Navigation Links -->
             <ul class="navbar-menu">
                 <li><a href="#browse">Browse</a></li>
                 <li><a href="#categories">Categories</a></li>
-                <li><a href="#sell">Sell Item</a></li>
                 <li><a href="#about">About</a></li>
             </ul>
             
             <!-- User Actions -->
             <div class="navbar-actions">
-                <button class="btn-secondary">Sign In</button>
-                <button class="btn-primary">Sign Up</button>
+                <!-- Cart Button (hidden until logged in) -->
+                <button class="cart-button" style="display: none;">
+                    🛒 <span class="cart-badge">0</span>
+                </button>
+                
+                <!-- Auth Buttons (shown when not logged in) -->
+                <div class="auth-buttons">
+                    <button class="btn-secondary login-button">Sign In</button>
+                    <button class="btn-primary register-button">Sign Up</button>
+                </div>
+                
+                <!-- User Menu (shown when logged in) -->
+                <div class="user-menu" style="display: none;">
+                    <span class="user-greeting">Hi, <span class="user-name"></span></span>
+                    <button class="logout-button">Logout</button>
+                </div>
+                
+                <!-- Admin Button (shown only for admins) -->
+                <button class="admin-button" style="display: none;">Admin Dashboard</button>
             </div>
         </nav>
     </header>
@@ -99,74 +117,27 @@
 
         <!-- FEATURED PRODUCTS SECTION -->
         <section class="featured-products">
-            <h2 class="section-title">Recently Listed</h2>
+            <div class="products-header">
+                <h2 class="section-title">Recently Listed</h2>
+                <div class="filter-controls">
+                    <select class="category-filter" title="Filter products by category">
+                        <option value="all">All Categories</option>
+                        <option value="textbooks">📚 Textbooks</option>
+                        <option value="electronics">💻 Electronics</option>
+                        <option value="lab-equipment">🔬 Lab Equipment</option>
+                        <option value="stationery">✏️ Stationery</option>
+                    </select>
+                    <select class="sort-dropdown" title="Sort products by different criteria">
+                        <option value="">Sort By</option>
+                        <option value="createdAt-desc">Newest First</option>
+                        <option value="price-asc">Price: Low to High</option>
+                        <option value="price-desc">Price: High to Low</option>
+                    </select>
+                </div>
+            </div>
             <div class="product-grid">
-                
-                <!-- Product Card 1 -->
-                <article class="product-card">
-                    <div class="product-image">
-                        <!-- Placeholder for now - we'll add real images later -->
-                        <div class="image-placeholder">📖</div>
-                    </div>
-                    <div class="product-info">
-                        <h3 class="product-title">Calculus Early Transcendentals (8th Ed)</h3>
-                        <p class="product-course">MATH 1013 • Like New Condition</p>
-                        <div class="product-price">$85</div>
-                        <div class="product-seller">
-                            <span class="seller-name">@sarah_chen</span>
-                            <span class="seller-rating">⭐ 4.8</span>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- Product Card 2 -->
-                <article class="product-card">
-                    <div class="product-image">
-                        <div class="image-placeholder">💻</div>
-                    </div>
-                    <div class="product-info">
-                        <h3 class="product-title">TI-84 Plus CE Graphing Calculator</h3>
-                        <p class="product-course">MATH/PHYS • Excellent Condition</p>
-                        <div class="product-price">$120</div>
-                        <div class="product-seller">
-                            <span class="seller-name">@mike_torres</span>
-                            <span class="seller-rating">⭐ 4.9</span>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- Product Card 3 -->
-                <article class="product-card">
-                    <div class="product-image">
-                        <div class="image-placeholder">⚗️</div>
-                    </div>
-                    <div class="product-info">
-                        <h3 class="product-title">Chemistry Lab Safety Kit</h3>
-                        <p class="product-course">CHEM 1000/1001 • Good Condition</p>
-                        <div class="product-price">$35</div>
-                        <div class="product-seller">
-                            <span class="seller-name">@alex_park</span>
-                            <span class="seller-rating">⭐ 4.7</span>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- Product Card 4 -->
-                <article class="product-card">
-                    <div class="product-image">
-                        <div class="image-placeholder">📐</div>
-                    </div>
-                    <div class="product-info">
-                        <h3 class="product-title">Engineering Drawing Set</h3>
-                        <p class="product-course">ESSE 1012 • Fair Condition</p>
-                        <div class="product-price">$25</div>
-                        <div class="product-seller">
-                            <span class="seller-name">@jenny_kim</span>
-                            <span class="seller-rating">⭐ 4.6</span>
-                        </div>
-                    </div>
-                </article>
-
+                <!-- Products will be loaded dynamically by JavaScript -->
+                <p class="loading-message">Loading products...</p>
             </div>
         </section>
 
@@ -210,7 +181,7 @@
         </div>
     </footer>
 
-    <!-- JavaScript for interactivity -->
-    <script src="src/js/main.js"></script>
+    <!-- JavaScript - ES6 Modules for proper architecture -->
+    <script type="module" src="src/js/app.js"></script>
 </body>
 </html>
